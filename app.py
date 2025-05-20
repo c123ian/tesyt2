@@ -14,7 +14,7 @@ app, rt = fast_app()
 # Set your API key
 llm = ChatGoogleGenerativeAI(
     model="gemini-1.5-pro",
-    google_api_key="AIzxxxxxxxxx"  # Pass key directly
+    google_api_key="Axxxxx"  # Pass key directly
 )
 
 # MRCPCH TAS Guidelines
@@ -655,7 +655,7 @@ def render_question_view(question_data, is_rewritten=False):
 def get():
     # Main content with drawer layout
     content = Div(
-        # Drawer container
+        # Left drawer for question list
         Div(
             # Hidden checkbox for drawer toggle
             Input(type="checkbox", id="drawer-toggle", cls="drawer-toggle"),
@@ -758,10 +758,10 @@ def get():
                 cls="drawer-content p-4 overflow-y-auto"
             ),
             
-            # Drawer sidebar
+            # Drawer sidebar (left side, for question list)
             Div(
-                # Overlay that closes drawer when clicked
-                Label(for_="drawer-toggle", aria_label="close sidebar", cls="drawer-overlay"),
+                # This overlay is critical - it makes the drawer close when clicking outside
+                Label(For="drawer-toggle", aria_label="close sidebar", cls="drawer-overlay"),
                 
                 # Sidebar content
                 Div(
@@ -783,6 +783,39 @@ def get():
             ),
             
             cls="drawer"
+        ),
+        
+        # Right drawer for assessment details
+        Div(
+            # Hidden checkbox for assessment drawer toggle
+            Input(type="checkbox", id="assessment-drawer-toggle", cls="drawer-toggle"),
+            
+            # Main content area (empty, as content is in the left drawer's content)
+            Div(cls="drawer-content"),
+            
+            # Assessment drawer sidebar (right side)
+            Div(
+                # This overlay makes the drawer close when clicking outside
+                Label(For="assessment-drawer-toggle", aria_label="close assessment sidebar", cls="drawer-overlay"),
+                
+                # Assessment sidebar content
+                Div(
+                    H2("Question Assessment", cls="text-xl font-semibold p-4 border-b"),
+                    
+                    # Assessment details container
+                    Div(
+                        id="assessment_details",
+                        cls="p-4 overflow-y-auto",
+                        # This will be populated when the assessment button is clicked
+                    ),
+                    
+                    cls="bg-base-100 h-full w-96 overflow-y-auto"
+                ),
+                
+                cls="drawer-side"
+            ),
+            
+            cls="drawer drawer-end"
         ),
         
         cls="main-container max-w-6xl mx-auto"
@@ -930,6 +963,11 @@ def get():
                 min-height: 100%;
                 overflow-y: auto;
             }
+            
+            /* Added: make sure the right drawer also spans full height */
+            .drawer.drawer-end .drawer-side {
+                height: 100%;
+            }
         """),
         content
     )
@@ -978,7 +1016,14 @@ async def post(question_json: str):
                         Div("Needs Revision", cls="badge badge-error ml-2"),
                         cls="mb-2"
                     ),
-                    cls="flex flex-col md:flex-row md:justify-between"
+                    # Add View Assessment button to open right drawer
+                    Label(
+                        Div("View Detailed Assessment", cls="btn btn-secondary mt-2"),
+                        For="assessment-drawer-toggle",
+                        hx_get=f"/assessment-details/{question_id}",
+                        hx_target="#assessment_details"
+                    ),
+                    cls="flex flex-col"
                 ),
                 cls="p-4 bg-base-200 rounded-box mb-6"
             ),
@@ -991,38 +1036,6 @@ async def post(question_json: str):
                 Div(cls="divider divider-primary font-bold"),
                 render_question_view({"question": result.get("rewritten_question", {})}, True)
             ) if result.get("rewritten_question") else "",
-            
-            # Category results with collapsible details
-            Div(
-                H3("Detailed Assessment", cls="text-xl font-semibold mb-4"),
-                
-                # Format checks
-                details_for_category("Format", result.get("results", {}).get("format", {})),
-                
-                # Content checks
-                details_for_category("Content", result.get("results", {}).get("content", {})),
-                
-                # Explanation checks
-                details_for_category("Explanations", result.get("results", {}).get("explanations", {})),
-                
-                # Style checks
-                details_for_category("Style", result.get("results", {}).get("style", {})),
-                
-                cls="mb-6 bg-white p-6 rounded-lg shadow-md"
-            ),
-            
-            # Issues requiring correction
-            Div(
-                H3("Issues Requiring Correction", cls="text-xl font-semibold mb-4"),
-                P("No issues found! This question meets all guidelines.", cls="text-success") 
-                if not result.get("corrections", []) else
-                Div(
-                    Ul(*[Li(correction, cls="mb-2") for correction in result.get("corrections", [])], 
-                       cls="list-disc pl-5"),
-                    cls="p-4 bg-base-200 rounded-box"
-                ),
-                cls="mb-6 bg-white p-6 rounded-lg shadow-md"
-            ),
             
             # Trigger an update of the questions list
             Script("htmx.trigger('body', 'refresh');"),
@@ -1091,6 +1104,54 @@ def get():
         )
     
     return question_items
+
+@rt("/assessment-details/{question_id}")
+def get(question_id: str):
+    """Render assessment details for the right drawer"""
+    if question_id not in question_db:
+        return Div(
+            P("Question assessment not found.", cls="p-4 text-center text-error"),
+            cls="bg-white p-6 rounded-lg shadow-md"
+        )
+    
+    data = question_db[question_id]
+    evaluation = data.get("evaluation", {})
+    
+    return Div(
+        # Issues requiring correction
+        Div(
+            H3("Issues Requiring Correction", cls="text-xl font-semibold mb-4"),
+            P("No issues found! This question meets all guidelines.", cls="text-success") 
+            if not evaluation.get("corrections", []) else
+            Div(
+                Ul(*[Li(correction, cls="mb-2") for correction in evaluation.get("corrections", [])], 
+                   cls="list-disc pl-5"),
+                cls="p-4 bg-base-200 rounded-box"
+            ),
+            cls="mb-6 bg-white p-6 rounded-lg shadow-md"
+        ),
+        
+        # Category results with collapsible details
+        Div(
+            H3("Detailed Assessment", cls="text-xl font-semibold mb-4"),
+            
+            # Format checks
+            details_for_category("Format", evaluation.get("results", {}).get("format", {})),
+            
+            # Content checks
+            details_for_category("Content", evaluation.get("results", {}).get("content", {})),
+            
+            # Explanation checks
+            details_for_category("Explanations", evaluation.get("results", {}).get("explanations", {})),
+            
+            # Style checks
+            details_for_category("Style", evaluation.get("results", {}).get("style", {})),
+            
+            cls="mb-6 bg-white p-6 rounded-lg shadow-md"
+        ),
+        
+        cls="p-4"
+    )
 
 @rt("/view-question/{question_id}")
 def get(question_id: str):
