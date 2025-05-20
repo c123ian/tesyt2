@@ -14,7 +14,7 @@ app, rt = fast_app()
 # Set your API key
 llm = ChatGoogleGenerativeAI(
     model="gemini-1.5-pro",
-    google_api_key="AIxxxxx"  # Pass key directly
+    google_api_key="AIzzzz"  # Pass key directly
 )
 
 # MRCPCH TAS Guidelines
@@ -569,8 +569,11 @@ question_db = {}
 # Helper function to render a question view
 def render_question_view(question_data, is_rewritten=False):
     """Renders a question view with options and clickable explanations"""
-    prefix = "rewritten_" if is_rewritten else ""
-    question = question_data.get(f"{prefix}question", {})
+    # Get the actual question object - don't use a prefix
+    if is_rewritten:
+        question = question_data.get("question", {})
+    else:
+        question = question_data.get("question", {})
     
     # Get options and correct answer
     options = question.get("options", [])
@@ -674,8 +677,7 @@ def get():
                     
                     # Guidelines in a more compact format
                     Div(
-                        # MRCPCH Guidelines
-                        Details(
+                       Details(
                             Summary(
                                 Div(
                                     Span("MRCPCH TAS Guidelines", cls="font-semibold"),
@@ -684,11 +686,18 @@ def get():
                                 cls="cursor-pointer p-3 hover:bg-base-200 rounded-lg"
                             ),
                             Div(
-                                Pre(MRCPCH_GUIDELINES, cls="p-3 bg-base-200 rounded-lg text-sm"),
+                                P("The following guidelines must be followed for MRCPCH TAS exam questions:", cls="mb-2"),
+                                Div(
+                                    Ul(
+                                        *[Li(rule.strip('- '), cls="mb-1") for rule in MRCPCH_GUIDELINES.strip().split('\n') if rule.strip()],
+                                        cls="list-disc pl-5"
+                                    ),
+                                    cls="p-3 bg-white rounded-lg text-sm"
+                                ),
                                 cls="ml-6 mt-2"
-                            ),
-                            cls="mb-2"
                         ),
+
+                    ),
                         
                         # Pastest Style Guidelines
                         Details(
@@ -700,7 +709,14 @@ def get():
                                 cls="cursor-pointer p-3 hover:bg-base-200 rounded-lg"
                             ),
                             Div(
-                                Pre(PASTEST_STYLE_GUIDELINES, cls="p-3 bg-base-200 rounded-lg text-sm"),
+                                P("The following style guidelines must be followed:", cls="mb-2"),
+                                Div(
+                                    Ul(
+                                        *[Li(rule.strip('- '), cls="mb-1") for rule in PASTEST_STYLE_GUIDELINES.strip().split('\n') if rule.strip()],
+                                        cls="list-disc pl-5"
+                                    ),
+                                    cls="p-3 bg-white rounded-lg text-sm"
+                                ),
                                 cls="ml-6 mt-2"
                             ),
                             cls="mb-2"
@@ -1065,8 +1081,8 @@ async def post(question_json: str):
             # If rewritten, display the rewritten question with a divider
             Div(
                 Div(cls="divider divider-primary font-bold"),
-                render_question_view({"question": result.get("rewritten_question", {})}, True)
-            ) if result.get("rewritten_question") else "",
+                render_question_view({"question": result.get("rewritten_question")}, True)
+            ) if result.get("rewritten_question") and "error" not in result.get("rewritten_question", {}) else "",
             
             # Trigger an update of the questions list
             Script("htmx.trigger('body', 'refresh');"),
@@ -1232,8 +1248,8 @@ def get(question_id: str):
         # If rewritten, display the rewritten question with a divider
         Div(
             Div(cls="divider divider-primary font-bold"),
-            render_question_view({"question": evaluation.get("rewritten_question", {})}, True)
-        ) if evaluation.get("rewritten_question") else "",
+            render_question_view({"question": evaluation.get("rewritten_question")}, True)
+        ) if evaluation.get("rewritten_question") and "error" not in evaluation.get("rewritten_question", {}) else "",
         
         # Category results with collapsible details
         Div(
