@@ -14,7 +14,7 @@ app, rt = fast_app()
 # Set your API key
 llm = ChatGoogleGenerativeAI(
     model="gemini-1.5-pro",
-    google_api_key="Axxxxxx"  # Pass key directly
+    google_api_key="AIzxxxxxxxxx"  # Pass key directly
 )
 
 # MRCPCH TAS Guidelines
@@ -321,6 +321,7 @@ def check_explanations(state: QuestionState) -> QuestionState:
 
 def check_style(state: QuestionState) -> QuestionState:
     """Check compliance with Pastest House Style Guide"""
+    # ... [function implementation unchanged]
     question = state["question"]
     
     # Find any potentially undefined abbreviations
@@ -710,9 +711,9 @@ def get():
                     H2("Submit Questions for Evaluation", cls="text-2xl font-semibold mb-4"),
                     P("Paste your question in JSON format or use the sample provided.", cls="mb-4"),
                     
-                    # Toggle drawer button
+                    # Toggle drawer button - simpler version with no icon
                     Label(
-                        "View All Questions", 
+                        "View All Questions",
                         For="drawer-toggle", 
                         cls="btn btn-primary drawer-button mb-4"
                     ),
@@ -781,7 +782,7 @@ def get():
                 cls="drawer-side"
             ),
             
-            cls="drawer lg:drawer-open"
+            cls="drawer"
         ),
         
         cls="main-container max-w-6xl mx-auto"
@@ -920,11 +921,14 @@ def get():
                 100% { transform: rotate(360deg); }
             }
             
-            /* Drawer responsiveness */
-            @media (max-width: 1024px) {
-                .drawer-side {
-                    position: fixed;
-                }
+            /* Standard drawer behavior - let DaisyUI handle it */
+            .drawer-side {
+                height: 100%;
+            }
+            
+            .drawer-side .menu {
+                min-height: 100%;
+                overflow-y: auto;
             }
         """),
         content
@@ -1021,7 +1025,7 @@ async def post(question_json: str):
             ),
             
             # Trigger an update of the questions list
-            Script("htmx.trigger('#question_list', 'refresh');"),
+            Script("htmx.trigger('body', 'refresh');"),
             
             cls="bg-white p-6 rounded-lg shadow-md"
         )
