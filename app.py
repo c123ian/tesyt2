@@ -14,7 +14,7 @@ app, rt = fast_app()
 # Set your API key
 llm = ChatGoogleGenerativeAI(
     model="gemini-1.5-pro",
-    google_api_key="Axxxxx"  # Pass key directly
+    google_api_key="AIxxxxx"  # Pass key directly
 )
 
 # MRCPCH TAS Guidelines
@@ -662,45 +662,71 @@ def get():
             
             # Main content area
             Div(
-                # Header
-                H1("MRCPCH TAS Question Evaluator", cls="text-4xl font-bold mb-6 text-center text-primary"),
+                # Header logo
+                Div(
+                    Img(src="passtestlogo.png", alt="Pastest Logo", cls="h-20 mx-auto mb-6"),
+                    cls="text-center"
+                ),
                 
                 # Guidelines section with collapsible elements (unchanged)
                 Div(
                     H2("Guidelines", cls="text-2xl font-semibold mb-4"),
                     
-                    # MRCPCH Guidelines (collapsible)
-                    Details(
-                        Summary("MRCPCH TAS Guidelines", cls="text-xl font-semibold cursor-pointer p-4 hover:bg-white hover:shadow-sm rounded-lg"),
-                        Div(
-                            Pre(MRCPCH_GUIDELINES, cls="p-4 bg-white border border-base-300 rounded-lg text-sm"),
-                            cls="mt-2 p-4"
-                        ),
-                        cls="mb-4 border border-base-300 rounded-lg"
-                    ),
-                    
-                    # Pastest Style Guidelines (collapsible)
-                    Details(
-                        Summary("Pastest House Style Guidelines", cls="text-xl font-semibold cursor-pointer p-4 hover:bg-white hover:shadow-sm rounded-lg"),
-                        Div(
-                            Pre(PASTEST_STYLE_GUIDELINES, cls="p-4 bg-white border border-base-300 rounded-lg text-sm"),
-                            cls="mt-2 p-4"
-                        ),
-                        cls="mb-4 border border-base-300 rounded-lg"
-                    ),
-                    
-                    # Approved Abbreviations (collapsible)
-                    Details(
-                        Summary("Approved Abbreviations", cls="text-xl font-semibold cursor-pointer p-4 hover:bg-white hover:shadow-sm rounded-lg"),
-                        Div(
-                            P("The following medical abbreviations can be used without definition:", cls="mb-2"),
-                            Div(
-                                ", ".join(APPROVED_ABBREVIATIONS),
-                                cls="p-4 bg-white border border-base-300 rounded-lg text-sm"
+                    # Guidelines in a more compact format
+                    Div(
+                        # MRCPCH Guidelines
+                        Details(
+                            Summary(
+                                Div(
+                                    Span("MRCPCH TAS Guidelines", cls="font-semibold"),
+                                    cls="flex items-center"
+                                ),
+                                cls="cursor-pointer p-3 hover:bg-base-200 rounded-lg"
                             ),
-                            cls="mt-2 p-4"
+                            Div(
+                                Pre(MRCPCH_GUIDELINES, cls="p-3 bg-base-200 rounded-lg text-sm"),
+                                cls="ml-6 mt-2"
+                            ),
+                            cls="mb-2"
                         ),
-                        cls="mb-4 border border-base-300 rounded-lg"
+                        
+                        # Pastest Style Guidelines
+                        Details(
+                            Summary(
+                                Div(
+                                    Span("Pastest House Style Guidelines", cls="font-semibold"),
+                                    cls="flex items-center"
+                                ),
+                                cls="cursor-pointer p-3 hover:bg-base-200 rounded-lg"
+                            ),
+                            Div(
+                                Pre(PASTEST_STYLE_GUIDELINES, cls="p-3 bg-base-200 rounded-lg text-sm"),
+                                cls="ml-6 mt-2"
+                            ),
+                            cls="mb-2"
+                        ),
+                        
+                        # Approved Abbreviations
+                        Details(
+                            Summary(
+                                Div(
+                                    Span("Approved Abbreviations", cls="font-semibold"),
+                                    cls="flex items-center"
+                                ),
+                                cls="cursor-pointer p-3 hover:bg-base-200 rounded-lg"
+                            ),
+                            Div(
+                                P("The following medical abbreviations can be used without definition:", cls="mb-2"),
+                                Div(
+                                    ", ".join(APPROVED_ABBREVIATIONS),
+                                    cls="p-3 bg-base-200 rounded-lg text-sm"
+                                ),
+                                cls="ml-6 mt-2"
+                            ),
+                            cls="mb-2"
+                        ),
+                        
+                        cls="mb-4"
                     ),
                     
                     cls="bg-white p-6 rounded-lg shadow-md mb-6"
@@ -1005,10 +1031,15 @@ async def post(question_json: str):
             Div(
                 Div(
                     Div(
-                        Span("Quality Score: ", cls="font-bold text-lg"),
-                        Div(f"{score_percent}%", 
-                            cls=f"badge ml-2 {'badge-success' if score >= 0.8 else 'badge-warning' if score >= 0.6 else 'badge-error'}"),
-                        cls="mb-2"
+                        Span("Quality Score: ", cls="font-bold text-lg mr-2"),
+                        Div(
+                            f"{score_percent}%",
+                            cls=f"radial-progress {'text-success' if score == 1.0 else 'text-error'}",
+                            style=f"--value:{score_percent};--size:4rem;",
+                            aria_valuenow=f"{score_percent}",
+                            role="progressbar"
+                        ),
+                        cls="mb-2 flex items-center"
                     ),
                     Div(
                         Span("Status: ", cls="font-bold text-lg"),
@@ -1174,10 +1205,15 @@ def get(question_id: str):
         Div(
             Div(
                 Div(
-                    Span("Quality Score: ", cls="font-bold text-lg"),
-                    Div(f"{score_percent}%", 
-                        cls=f"badge ml-2 {'badge-success' if score >= 0.8 else 'badge-warning' if score >= 0.6 else 'badge-error'}"),
-                    cls="mb-2"
+                    Span("Quality Score: ", cls="font-bold text-lg mr-2"),
+                    Div(
+                        f"{score_percent}%",
+                        cls=f"radial-progress {'text-success' if score == 1.0 else 'text-error'}",
+                        style=f"--value:{score_percent};--size:4rem;",
+                        aria_valuenow=f"{score_percent}",
+                        role="progressbar"
+                    ),
+                    cls="mb-2 flex items-center"
                 ),
                 Div(
                     Span("Status: ", cls="font-bold text-lg"),
