@@ -12,10 +12,9 @@ import re
 app, rt = fast_app()
 
 # Set your API key
-
 llm = ChatGoogleGenerativeAI(
-    model="gemini-1.5-pro",  # Try the specific model name
-    google_api_key="AIzxxxxxxxxx"  # Pass key directly
+    model="gemini-1.5-pro",
+    google_api_key="Axxxxxx"  # Pass key directly
 )
 
 # MRCPCH TAS Guidelines
@@ -109,9 +108,10 @@ def extract_all_text(question):
     
     return " ".join(texts)
 
-# Evaluation functions
+# Evaluation functions (unchanged from original)
 def check_format(state: QuestionState) -> QuestionState:
     """Check all format-related requirements"""
+    # ... [function implementation unchanged]
     question = state["question"]
     
     prompt = f"""
@@ -184,6 +184,7 @@ def check_format(state: QuestionState) -> QuestionState:
 
 def check_content(state: QuestionState) -> QuestionState:
     """Check all content-related requirements"""
+    # ... [function implementation unchanged]
     question = state["question"]
     
     prompt = f"""
@@ -250,6 +251,7 @@ def check_content(state: QuestionState) -> QuestionState:
 
 def check_explanations(state: QuestionState) -> QuestionState:
     """Check all explanation-related requirements"""
+    # ... [function implementation unchanged]
     question = state["question"]
     
     prompt = f"""
@@ -433,6 +435,7 @@ def rewrite_if_needed(state: QuestionState) -> QuestionState:
         state["rewritten_question"] = None
         return state
     
+    # ... [function implementation unchanged]
     question = state["question"]
     corrections = state["corrections"]
     
@@ -562,95 +565,226 @@ def evaluate_and_rewrite(question):
 # Database simulation (would be replaced with actual DB in production)
 question_db = {}
 
-@rt("/")
-def get():
-    # Main content
-    content = Div(
-        H1("MRCPCH TAS Question Evaluator", cls="text-4xl font-bold mb-6 text-center text-primary"),
-        
-        # Guidelines section with collapsible elements
+# Helper function to render a question view
+def render_question_view(question_data, is_rewritten=False):
+    """Renders a question view with options and clickable explanations"""
+    prefix = "rewritten_" if is_rewritten else ""
+    question = question_data.get(f"{prefix}question", {})
+    
+    # Get options and correct answer
+    options = question.get("options", [])
+    correct_option = next((opt["letter"] for opt in options if opt.get("correct", False)), None)
+    
+    # Get explanations
+    explanations = question.get("explanations", [])
+    explanation_dict = {exp["letter"]: exp["text"] for exp in explanations} if explanations else {}
+    
+    # Render investigations table if present
+    investigations_table = ""
+    if question.get("investigations"):
+        investigations_table = Div(
+            H3("Investigations", cls="text-lg font-semibold mb-2"),
+            Table(
+                Thead(
+                    Tr(
+                        Th("Test", cls="font-bold"),
+                        Th("Value", cls="font-bold"),
+                        Th("Normal Range", cls="font-bold")
+                    )
+                ),
+                Tbody(
+                    *[Tr(
+                        Td(inv["test"]),
+                        Td(inv["value"]),
+                        Td(inv["normal_range"])
+                    ) for inv in question.get("investigations", [])]
+                ),
+                cls="table table-zebra w-full"
+            ),
+            cls="mb-4"
+        )
+    
+    # Create the question view
+    return Div(
+        # Question header and vignette
+        H3(f"Question{' (Rewritten)' if is_rewritten else ''}", cls="text-xl font-semibold mb-4"),
         Div(
-            H2("Guidelines", cls="text-2xl font-semibold mb-4"),
-            
-            # MRCPCH Guidelines (collapsible)
-            Details(
-                Summary("MRCPCH TAS Guidelines", cls="text-xl font-semibold cursor-pointer p-4 hover:bg-white hover:shadow-sm rounded-lg"),
-                Div(
-                    Pre(MRCPCH_GUIDELINES, cls="p-4 bg-white border border-base-300 rounded-lg text-sm"),
-                    cls="mt-2 p-4"
-                ),
-                cls="mb-4 border border-base-300 rounded-lg"
-            ),
-            
-            # Pastest Style Guidelines (collapsible)
-            Details(
-                Summary("Pastest House Style Guidelines", cls="text-xl font-semibold cursor-pointer p-4 hover:bg-white hover:shadow-sm rounded-lg"),
-                Div(
-                    Pre(PASTEST_STYLE_GUIDELINES, cls="p-4 bg-white border border-base-300 rounded-lg text-sm"),
-                    cls="mt-2 p-4"
-                ),
-                cls="mb-4 border border-base-300 rounded-lg"
-            ),
-            
-            # Approved Abbreviations (collapsible)
-            Details(
-                Summary("Approved Abbreviations", cls="text-xl font-semibold cursor-pointer p-4 hover:bg-white hover:shadow-sm rounded-lg"),
-                Div(
-                    P("The following medical abbreviations can be used without definition:", cls="mb-2"),
-                    Div(
-                        ", ".join(APPROVED_ABBREVIATIONS),
-                        cls="p-4 bg-white border border-base-300 rounded-lg text-sm"
-                    ),
-                    cls="mt-2 p-4"
-                ),
-                cls="mb-4 border border-base-300 rounded-lg"
-            ),
-            
-            cls="bg-white p-6 rounded-lg shadow-md mb-6"
+            # Patient details
+            P(f"Patient: {question.get('patient_details', {}).get('age', 'Unknown age')} year old {question.get('patient_details', {}).get('sex', 'patient')}", 
+              cls="text-sm mb-2"),
+            # Vignette
+            P(question.get("vignette", "No vignette provided"), cls="mb-4"),
+            # Investigations table
+            investigations_table,
+            # Question text
+            P(question.get("question", "No question provided"), cls="font-semibold mb-4"),
+            cls="p-4 bg-base-200 rounded-lg mb-4"
         ),
         
-        # Question submission section
+        # Options with clickable explanations
+        H4("Options", cls="text-lg font-semibold mb-2"),
         Div(
-            H2("Submit a Question for Evaluation", cls="text-2xl font-semibold mb-4"),
-            P("Paste your question in JSON format or use the sample provided.", cls="mb-4"),
-            Form(
-                Div(
-                    Label("Question JSON:", cls="font-semibold"),
-                    Textarea(
-                        id="question_json", 
-                        name="question_json", 
-                        value="{\n  \"vignette\": \"A 3-year-old boy presents with fever.\",\n  \"patient_details\": {\n    \"age\": 3,\n    \"sex\": \"male\"\n  },\n  \"investigations\": [\n    {\"test\": \"WBC\", \"value\": \"15 x 10^9/L\", \"normal_range\": \"5-15 x 10^9/L\"},\n    {\"test\": \"CRP\", \"value\": \"50 mg/L\", \"normal_range\": \"<10 mg/L\"}\n  ],\n  \"question\": \"What is the most likely diagnosis?\",\n  \"options\": [\n    {\"letter\": \"A\", \"text\": \"Viral URTI\", \"correct\": true},\n    {\"letter\": \"B\", \"text\": \"Bacterial pneumonia\", \"correct\": false},\n    {\"letter\": \"C\", \"text\": \"Meningitis\", \"correct\": false},\n    {\"letter\": \"D\", \"text\": \"Otitis media\", \"correct\": false},\n    {\"letter\": \"E\", \"text\": \"Urinary tract infection\", \"correct\": false}\n  ],\n  \"explanations\": [\n    {\"letter\": \"A\", \"text\": \"This is the correct answer. Viral URTIs commonly present with fever in children.\"},\n    {\"letter\": \"B\", \"text\": \"Pneumonia would typically include respiratory symptoms.\"},\n    {\"letter\": \"C\", \"text\": \"Meningitis would include more severe symptoms.\"},\n    {\"letter\": \"D\", \"text\": \"Otitis media would include ear pain.\"},\n    {\"letter\": \"E\", \"text\": \"UTI would include urinary symptoms.\"}\n  ]\n}",
-                        cls="w-full p-2 border rounded mb-4 font-mono text-sm",
-                        rows="15"
+            Ul(
+                *[Li(
+                    Details(
+                        Summary(
+                            Div(
+                                Span(f"{opt['letter']}. ", cls="font-semibold"),
+                                Span(opt["text"]),
+                                cls=f"flex items-center {'text-success font-bold' if opt.get('letter') == correct_option else ''}"
+                            ),
+                            cls="cursor-pointer p-3 hover:bg-base-200 rounded-lg"
+                        ),
+                        Div(
+                            P(explanation_dict.get(opt["letter"], "No explanation provided."), 
+                              cls="p-3 bg-base-200 rounded-lg mt-2"),
+                            cls="ml-6"
+                        ),
+                        cls="mb-2"
                     ),
-                    cls="mb-4"
-                ),
-                Button(
-                    "Evaluate Question", 
-                    cls="btn btn-primary w-full", 
-                    hx_post="/evaluate-question", 
-                    hx_target="#evaluation_results", 
-                    hx_indicator="#backdrop"  # Point to the backdrop
-                ),
-                cls="bg-white p-6 rounded-lg shadow-md"
+                    cls="mb-2"
+                ) for opt in options]
             ),
             cls="mb-6"
         ),
-        
-        # Backdrop with spinner (fixed positioning)
+        cls="mb-6"
+    )
+
+@rt("/")
+def get():
+    # Main content with drawer layout
+    content = Div(
+        # Drawer container
         Div(
-            id="backdrop",
-            cls="fixed top-0 bottom-0 left-0 right-0 bg-white bg-opacity-70 opacity-0 -z-10 transition-all duration-300 flex items-center justify-center",
-            children=[
-                # Custom spinner using div instead of relying on DaisyUI's loading class
-                Div(cls="custom-spinner")
-            ]
+            # Hidden checkbox for drawer toggle
+            Input(type="checkbox", id="drawer-toggle", cls="drawer-toggle"),
+            
+            # Main content area
+            Div(
+                # Header
+                H1("MRCPCH TAS Question Evaluator", cls="text-4xl font-bold mb-6 text-center text-primary"),
+                
+                # Guidelines section with collapsible elements (unchanged)
+                Div(
+                    H2("Guidelines", cls="text-2xl font-semibold mb-4"),
+                    
+                    # MRCPCH Guidelines (collapsible)
+                    Details(
+                        Summary("MRCPCH TAS Guidelines", cls="text-xl font-semibold cursor-pointer p-4 hover:bg-white hover:shadow-sm rounded-lg"),
+                        Div(
+                            Pre(MRCPCH_GUIDELINES, cls="p-4 bg-white border border-base-300 rounded-lg text-sm"),
+                            cls="mt-2 p-4"
+                        ),
+                        cls="mb-4 border border-base-300 rounded-lg"
+                    ),
+                    
+                    # Pastest Style Guidelines (collapsible)
+                    Details(
+                        Summary("Pastest House Style Guidelines", cls="text-xl font-semibold cursor-pointer p-4 hover:bg-white hover:shadow-sm rounded-lg"),
+                        Div(
+                            Pre(PASTEST_STYLE_GUIDELINES, cls="p-4 bg-white border border-base-300 rounded-lg text-sm"),
+                            cls="mt-2 p-4"
+                        ),
+                        cls="mb-4 border border-base-300 rounded-lg"
+                    ),
+                    
+                    # Approved Abbreviations (collapsible)
+                    Details(
+                        Summary("Approved Abbreviations", cls="text-xl font-semibold cursor-pointer p-4 hover:bg-white hover:shadow-sm rounded-lg"),
+                        Div(
+                            P("The following medical abbreviations can be used without definition:", cls="mb-2"),
+                            Div(
+                                ", ".join(APPROVED_ABBREVIATIONS),
+                                cls="p-4 bg-white border border-base-300 rounded-lg text-sm"
+                            ),
+                            cls="mt-2 p-4"
+                        ),
+                        cls="mb-4 border border-base-300 rounded-lg"
+                    ),
+                    
+                    cls="bg-white p-6 rounded-lg shadow-md mb-6"
+                ),
+                
+                # Question submission section
+                Div(
+                    H2("Submit Questions for Evaluation", cls="text-2xl font-semibold mb-4"),
+                    P("Paste your question in JSON format or use the sample provided.", cls="mb-4"),
+                    
+                    # Toggle drawer button
+                    Label(
+                        "View All Questions", 
+                        For="drawer-toggle", 
+                        cls="btn btn-primary drawer-button mb-4"
+                    ),
+                    
+                    Form(
+                        Div(
+                            Label("Question JSON:", cls="font-semibold"),
+                            Textarea(
+                                id="question_json", 
+                                name="question_json", 
+                                value="""{"vignette": "A 3-year-old boy presents with fever.", "patient_details": {"age": 3, "sex": "male"}, "investigations": [{"test": "WBC", "value": "15 x 10^9/L", "normal_range": "5-15 x 10^9/L"}, {"test": "CRP", "value": "50 mg/L", "normal_range": "<10 mg/L"}], "question": "What is the most likely diagnosis?", "options": [{"letter": "A", "text": "Viral URTI", "correct": true}, {"letter": "B", "text": "Bacterial pneumonia", "correct": false}, {"letter": "C", "text": "Meningitis", "correct": false}, {"letter": "D", "text": "Otitis media", "correct": false}, {"letter": "E", "text": "Urinary tract infection", "correct": false}], "explanations": [{"letter": "A", "text": "This is the correct answer. Viral URTIs commonly present with fever in children."}, {"letter": "B", "text": "Pneumonia would typically include respiratory symptoms."}, {"letter": "C", "text": "Meningitis would include more severe symptoms."}, {"letter": "D", "text": "Otitis media would include ear pain."}, {"letter": "E", "text": "UTI would include urinary symptoms."}]}""",
+                                cls="w-full p-2 border rounded mb-4 font-mono text-sm",
+                                rows="15"
+                            ),
+                            cls="mb-4"
+                        ),
+                        Button(
+                            "Evaluate Question", 
+                            cls="btn btn-primary w-full", 
+                            hx_post="/evaluate-question", 
+                            hx_target="#question_view_container", 
+                            hx_indicator="#backdrop"
+                        ),
+                        cls="bg-white p-6 rounded-lg shadow-md"
+                    ),
+                    cls="mb-6"
+                ),
+                
+                # Question view container
+                Div(id="question_view_container", cls="mt-4"),
+                
+                # Backdrop with spinner (fixed positioning)
+                Div(
+                    id="backdrop",
+                    cls="fixed top-0 bottom-0 left-0 right-0 bg-white bg-opacity-70 opacity-0 -z-10 transition-all duration-300 flex items-center justify-center",
+                    children=[
+                        # Custom spinner
+                        Div(cls="custom-spinner")
+                    ]
+                ),
+                
+                cls="drawer-content p-4 overflow-y-auto"
+            ),
+            
+            # Drawer sidebar
+            Div(
+                # Overlay that closes drawer when clicked
+                Label(for_="drawer-toggle", aria_label="close sidebar", cls="drawer-overlay"),
+                
+                # Sidebar content
+                Div(
+                    H2("Evaluated Questions", cls="text-xl font-semibold p-4 border-b"),
+                    
+                    # List of questions
+                    Ul(
+                        id="question_list",
+                        cls="menu bg-base-200 min-h-full w-80 p-4",
+                        # This will be populated by the evaluate-question endpoint
+                        hx_get="/questions-list",
+                        hx_trigger="load"
+                    ),
+                    
+                    cls="bg-base-100 h-full w-80"
+                ),
+                
+                cls="drawer-side"
+            ),
+            
+            cls="drawer lg:drawer-open"
         ),
         
-        # Results section
-        Div(id="evaluation_results", cls="mt-4"),
-        
-        cls="main-container"
+        cls="main-container max-w-6xl mx-auto"
     )
     
     # Return the title, styles, and content separately
@@ -687,7 +821,7 @@ def get():
             }
             
             body {
-                background-color: #ffffff;
+                background-color: #f9f9fa;
             }
             
             body, h1, h2, h3, h4, h5, h6, p, span, div, button, input, textarea, label, summary, details {
@@ -695,9 +829,7 @@ def get():
             }
             
             .main-container {
-                max-width: 1000px;
-                margin: 0 auto;
-                padding: 1rem;
+                min-height: 100vh;
             }
             
             pre {
@@ -757,6 +889,10 @@ def get():
                 color: var(--color-error);
             }
             
+            .text-success {
+                color: var(--color-success);
+            }
+            
             /* Backdrop and spinner */
             #backdrop {
                 transition: opacity 0.3s, z-index 0s 0.3s;
@@ -782,6 +918,13 @@ def get():
             @keyframes spinner {
                 0% { transform: rotate(0deg); }
                 100% { transform: rotate(360deg); }
+            }
+            
+            /* Drawer responsiveness */
+            @media (max-width: 1024px) {
+                .drawer-side {
+                    position: fixed;
+                }
             }
         """),
         content
@@ -816,16 +959,6 @@ async def post(question_json: str):
         
         # Format the results for display
         results_div = Div(
-            H2("Evaluation Results", cls="text-2xl font-semibold mb-4"),
-            
-            # Error message if present
-            Div(
-                H3("Error", cls="text-xl font-semibold mb-4 text-error"),
-                P(result.get("error", ""), cls="mb-4"),
-                Pre(result.get("traceback", ""), cls="bg-base-200 p-4 rounded-lg text-sm"),
-                cls="bg-white p-6 rounded-lg shadow-md mb-6"
-            ) if "error" in result else "",
-            
             # Score and overall status
             Div(
                 Div(
@@ -845,6 +978,15 @@ async def post(question_json: str):
                 ),
                 cls="p-4 bg-base-200 rounded-box mb-6"
             ),
+            
+            # Display original question
+            render_question_view({"question": question}, False),
+            
+            # If rewritten, display the rewritten question with a divider
+            Div(
+                Div(cls="divider divider-primary font-bold"),
+                render_question_view({"question": result.get("rewritten_question", {})}, True)
+            ) if result.get("rewritten_question") else "",
             
             # Category results with collapsible details
             Div(
@@ -878,20 +1020,8 @@ async def post(question_json: str):
                 cls="mb-6 bg-white p-6 rounded-lg shadow-md"
             ),
             
-            # Rewritten question (if available)
-            Div(
-                H3("Rewritten Question", cls="text-xl font-semibold mb-4"),
-                P("No rewriting needed. The original question meets all guidelines.", cls="text-success") 
-                if not result.get("rewritten_question") else
-                Div(
-                    Pre(
-                        json.dumps(result.get("rewritten_question", {}), indent=2), 
-                        cls="bg-base-200 p-4 rounded-lg overflow-auto text-sm"
-                    ),
-                    cls="mt-4"
-                ),
-                cls="bg-white p-6 rounded-lg shadow-md"
-            ),
+            # Trigger an update of the questions list
+            Script("htmx.trigger('#question_list', 'refresh');"),
             
             cls="bg-white p-6 rounded-lg shadow-md"
         )
@@ -906,6 +1036,138 @@ async def post(question_json: str):
             Pre(traceback.format_exc(), cls="bg-base-200 p-4 rounded-lg text-sm"),
             cls="bg-white p-6 rounded-lg shadow-md"
         )
+
+@rt("/questions-list")
+def get():
+    """Return the list of questions for the drawer"""
+    if not question_db:
+        return Li(
+            P("No questions evaluated yet.", cls="p-4 text-center text-gray-500"),
+            cls="bordered"
+        )
+    
+    # Generate list items for each question
+    question_items = []
+    for q_id, data in question_db.items():
+        question = data.get("original_question", {})
+        evaluation = data.get("evaluation", {})
+        score = evaluation.get("score", 0)
+        has_rewrite = evaluation.get("rewritten_question") is not None
+        
+        # Create abbreviated title from vignette or question
+        title = question.get("vignette", "")
+        if len(title) > 40:
+            title = title[:37] + "..."
+        elif not title:
+            title = question.get("question", "Untitled Question")
+            if len(title) > 40:
+                title = title[:37] + "..."
+        
+        # Add item with score badge and clickable link
+        question_items.append(
+            Li(
+                A(
+                    Div(
+                        Div(title, cls="font-medium"),
+                        Div(
+                            Span(f"{int(score * 100)}%", 
+                                cls=f"badge {'badge-success' if score >= 0.8 else 'badge-warning' if score >= 0.6 else 'badge-error'} badge-sm mr-2"),
+                            Span("Rewritten" if has_rewrite else "", 
+                                cls="badge badge-outline badge-sm" if has_rewrite else "hidden"),
+                            cls="flex items-center mt-1"
+                        ),
+                        cls="flex flex-col"
+                    ),
+                    hx_get=f"/view-question/{q_id}",
+                    hx_target="#question_view_container",
+                    cls="p-3 hover:bg-base-300 rounded-lg"
+                ),
+                cls="mb-2"
+            )
+        )
+    
+    return question_items
+
+@rt("/view-question/{question_id}")
+def get(question_id: str):
+    """Render a single question view"""
+    if question_id not in question_db:
+        return Div(
+            P("Question not found.", cls="p-4 text-center text-error"),
+            cls="bg-white p-6 rounded-lg shadow-md"
+        )
+    
+    data = question_db[question_id]
+    question = data.get("original_question", {})
+    evaluation = data.get("evaluation", {})
+    score = evaluation.get("score", 0)
+    score_percent = int(score * 100)
+    has_failures = len(evaluation.get("corrections", [])) > 0
+    
+    return Div(
+        # Score and overall status
+        Div(
+            Div(
+                Div(
+                    Span("Quality Score: ", cls="font-bold text-lg"),
+                    Div(f"{score_percent}%", 
+                        cls=f"badge ml-2 {'badge-success' if score >= 0.8 else 'badge-warning' if score >= 0.6 else 'badge-error'}"),
+                    cls="mb-2"
+                ),
+                Div(
+                    Span("Status: ", cls="font-bold text-lg"),
+                    Div("Passed", cls="badge badge-success ml-2") if not has_failures else 
+                    Div("Needs Revision", cls="badge badge-error ml-2"),
+                    cls="mb-2"
+                ),
+                cls="flex flex-col md:flex-row md:justify-between"
+            ),
+            cls="p-4 bg-base-200 rounded-box mb-6"
+        ),
+        
+        # Display original question
+        render_question_view({"question": question}, False),
+        
+        # If rewritten, display the rewritten question with a divider
+        Div(
+            Div(cls="divider divider-primary font-bold"),
+            render_question_view({"question": evaluation.get("rewritten_question", {})}, True)
+        ) if evaluation.get("rewritten_question") else "",
+        
+        # Category results with collapsible details
+        Div(
+            H3("Detailed Assessment", cls="text-xl font-semibold mb-4"),
+            
+            # Format checks
+            details_for_category("Format", evaluation.get("results", {}).get("format", {})),
+            
+            # Content checks
+            details_for_category("Content", evaluation.get("results", {}).get("content", {})),
+            
+            # Explanation checks
+            details_for_category("Explanations", evaluation.get("results", {}).get("explanations", {})),
+            
+            # Style checks
+            details_for_category("Style", evaluation.get("results", {}).get("style", {})),
+            
+            cls="mb-6 bg-white p-6 rounded-lg shadow-md"
+        ),
+        
+        # Issues requiring correction
+        Div(
+            H3("Issues Requiring Correction", cls="text-xl font-semibold mb-4"),
+            P("No issues found! This question meets all guidelines.", cls="text-success") 
+            if not evaluation.get("corrections", []) else
+            Div(
+                Ul(*[Li(correction, cls="mb-2") for correction in evaluation.get("corrections", [])], 
+                   cls="list-disc pl-5"),
+                cls="p-4 bg-base-200 rounded-box"
+            ),
+            cls="mb-6 bg-white p-6 rounded-lg shadow-md"
+        ),
+        
+        cls="bg-white p-6 rounded-lg shadow-md"
+    )
 
 def details_for_category(category_name, checks):
     """Helper function to create a details/summary section for a category of checks"""
